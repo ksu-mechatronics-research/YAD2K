@@ -4,6 +4,8 @@ I have also made the keras weights file (.h5) I generated on 17 04 2017
 
 It was able to label some images with test_yolo.py, so it should work.
 
+Note: To generate the .h5, I had to grab the new yolo .cfg from the darkent github.
+
 ## YAD2K: Yet Another Darknet 2 Keras
 
 [![license](https://img.shields.io/github/license/mashape/apistatus.svg)](LICENSE)
