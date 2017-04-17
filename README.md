@@ -1,4 +1,10 @@
-# YAD2K: Yet Another Darknet 2 Keras
+# This is a fork
+I have also made the keras weights file (.h5) I generated on 17 04 2017 
+(dd mm yyyy) available [here](https://drive.google.com/file/d/0B_fefIm3LDfjOE5ONmlsUE5TMTA/view?usp=sharing)
+
+It was able to label some images with test_yolo.py, so it should work.
+
+## YAD2K: Yet Another Darknet 2 Keras
 
 [![license](https://img.shields.io/github/license/mashape/apistatus.svg)](LICENSE)
 
