@@ -107,6 +107,7 @@ def _main(args):
     # Generate output tensor targets for filtered bounding boxes.
     # TODO: Wrap these backend operations with Keras layers.
     yolo_outputs = yolo_head(yolo_model.output, anchors, len(class_names))
+
     input_image_shape = K.placeholder(shape=(2, ))
     boxes, scores, classes = yolo_eval(
         yolo_outputs,
@@ -120,6 +121,8 @@ def _main(args):
             if not image_type:
                 continue
         except IsADirectoryError:
+            continue
+        except PermissionError:
             continue
 
         image = Image.open(os.path.join(test_path, image_file))
