@@ -3,7 +3,7 @@
 images/*
 images/out/*
 
-#Ignore darkent .weights file
+# Ignore darkent .weights file
 *.weights
 
 # Byte-compiled / optimized / DLL files
