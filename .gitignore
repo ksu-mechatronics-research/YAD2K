@@ -8,9 +8,6 @@ images/*
 images/out/*
 model_data/*_anchors.txt
 
-# Ignore darkent .weights file
-*.weights
-
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
