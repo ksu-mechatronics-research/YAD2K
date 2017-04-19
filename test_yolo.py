@@ -122,7 +122,7 @@ def _main(args):
                 continue
         except IsADirectoryError:
             continue
-        except PermissionError:
+        except PermissionError:#windows error, permission denied
             continue
 
         image = Image.open(os.path.join(test_path, image_file))
