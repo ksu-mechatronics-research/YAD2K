@@ -14,6 +14,8 @@ from keras import backend as K
 from keras.layers import Input, Lambda
 from keras.models import Model
 
+from keras.callbacks import TensorBoard, ModelCheckpoint
+
 from yad2k.models.keras_yolo import (preprocess_true_boxes, yolo_body,
                                      yolo_eval, yolo_head, yolo_loss)
 from yad2k.utils.draw_boxes import draw_boxes
@@ -120,19 +122,23 @@ def _main():
     matching_true_boxes = np.array(matching_true_boxes)
     print(matching_true_boxes.shape)
 
-    num_steps = 10
+    num_steps = 100
     # TODO: For full training, put preprocessing inside training loop.
     # for i in range(num_steps):
     #     loss = model.train_on_batch(
     #         [image_data, boxes, detectors_mask, matching_true_boxes],
     #         np.zeros(len(image_data)))
 
-    # model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
-    #           np.zeros(len(image_data)),
-    #           batch_size=1,
-    #           epochs=num_steps)
-    # model.save_weights('overfit_weights.h5')
-    model.load_weights('overfit_weights.h5')
+    logging = TensorBoard()
+    checkpoint = ModelCheckpoint("training.h5", monitor='loss', save_weights_only=True, save_best_only=False)
+
+    model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
+              np.zeros(len(image_data)),
+              batch_size=8,
+              epochs=num_steps,
+              callbacks=[logging, checkpoint])
+    model.save_weights('overfit_weights.h5')
+    # model.load_weights('overfit_weights.h5')
 
     image_data = [np.expand_dims(image, axis=0) for image in image_data]
     boxes = [np.expand_dims(box, axis=0) for box in boxes]
@@ -149,7 +155,7 @@ def _main():
     yolo_outputs = yolo_head(model_body.output, anchors, len(class_names))
     input_image_shape = K.placeholder(shape=(2, ))
     boxes, scores, classes = yolo_eval(
-        yolo_outputs, input_image_shape, score_threshold=0, iou_threshold=0)
+        yolo_outputs, input_image_shape, score_threshold=0.1, iou_threshold=0)
 
     # Run prediction on overfit image.
     sess = K.get_session()  # TODO: Remove dependence on Tensorflow session.
