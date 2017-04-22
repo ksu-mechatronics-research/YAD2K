@@ -127,35 +127,48 @@ def _main():
     #         [image_data, boxes, detectors_mask, matching_true_boxes],
     #         np.zeros(len(image_data)))
 
-    model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
-              np.zeros(len(image_data)),
-              batch_size=1,
-              epochs=num_steps)
-    model.save_weights('overfit_weights.h5')
+    # model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
+    #           np.zeros(len(image_data)),
+    #           batch_size=1,
+    #           epochs=num_steps)
+    # model.save_weights('overfit_weights.h5')
+    model.load_weights('overfit_weights.h5')
+
+    image_data = [np.expand_dims(image, axis=0) for image in image_data]
+    boxes = [np.expand_dims(box, axis=0) for box in boxes]
+    detectors_mask = [np.expand_dims(mask, axis=0) for mask in detectors_mask]
+    matching_true_boxes = [np.expand_dims(box, axis=0) for box in matching_true_boxes]
+
+
+    image_data = np.array(image_data) 
+    boxes = np.array(boxes)
+    detectors_mask = np.asarray(detectors_mask)
+    matching_true_boxes = np.array(matching_true_boxes)
 
     # Create output variables for prediction.
     yolo_outputs = yolo_head(model_body.output, anchors, len(class_names))
     input_image_shape = K.placeholder(shape=(2, ))
     boxes, scores, classes = yolo_eval(
-        yolo_outputs, input_image_shape, score_threshold=.3, iou_threshold=.9)
+        yolo_outputs, input_image_shape, score_threshold=0, iou_threshold=0)
 
     # Run prediction on overfit image.
     sess = K.get_session()  # TODO: Remove dependence on Tensorflow session.
-    out_boxes, out_scores, out_classes = sess.run(
-        [boxes, scores, classes],
-        feed_dict={
-            model_body.input: image_data,
-            input_image_shape: [image.size[1], image.size[0]],
-            K.learning_phase(): 0
-        })
-    print('Found {} boxes for image.'.format(len(out_boxes)))
-    print(out_boxes)
+    for i in range(len(images)):
+        out_boxes, out_scores, out_classes = sess.run(
+            [boxes, scores, classes],
+            feed_dict={
+                model_body.input: image_data[i],
+                input_image_shape: [images[i].size[1], images[i].size[0]],
+                K.learning_phase(): 0
+            })
+        print('Found {} boxes for image.'.format(len(out_boxes)))
+        print(out_boxes)
 
-    # Plot image with predicted boxes.
-    image_with_boxes = draw_boxes(image_data[0], out_boxes, out_classes,
-                                  class_names, out_scores)
-    plt.imshow(image_with_boxes, interpolation='nearest')
-    plt.show()
+        # Plot image with predicted boxes.
+        image_with_boxes = draw_boxes(image_data[i][0], out_boxes, out_classes,
+                                    class_names, out_scores)
+        plt.imshow(image_with_boxes, interpolation='nearest')
+        plt.show()
 
 
 if __name__ == '__main__':
