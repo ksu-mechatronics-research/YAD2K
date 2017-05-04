@@ -88,15 +88,13 @@ def create_model(anchors, class_names):
     matching_boxes_input = Input(shape=matching_boxes_shape)
 
     # Create model body.
-    model_body = load_model(os.path.join('model_data', 'yolo.h5'))
-    model_body.layers.pop(0)
-    try: 
-        model_body(image_input)
-    except:
-        pass
-    model_body.inputs = Input(tensor=image_input)
-    model_body.compile('adam', 'mean_squared_error')
-    final_layer = Conv2D(len(anchors)*(5+len(class_names)), (1, 1), activation='linear')(model_body.layers[-2].output)
+    # model_body = load_model(os.path.join('model_data', 'yolo.h5'))
+    # model_body = Model(model_body.inputs, model_body.layers[-2].output)
+    # model_body.save_weights(os.path.join('model_data', 'yolo_topless.h5'))
+    model_body = yolo_body(image_input, len(anchors), len(class_names))
+    model_body = Model(model_body.input, model_body.layers[-2].output)
+    model_body.load_weights(os.path.join('model_data', 'yolo_topless.h5'))
+    final_layer = Conv2D(len(anchors)*(5+len(class_names)), (1, 1), activation='linear')(model_body.output)
     model_body = Model(image_input, final_layer)
 
     # Place model loss on CPU to reduce GPU memory usage.
