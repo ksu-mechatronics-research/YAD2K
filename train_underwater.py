@@ -117,7 +117,7 @@ def create_model(anchors, class_names):
         [image_input, boxes_input, detectors_mask_input,
          matching_boxes_input], model_loss)
 
-    return model
+    return model_body, model
 
 def _main():
     DATA_PATH = os.path.expanduser(os.path.join('..', 'DATA', 'underwater.hdf5'))
@@ -130,7 +130,7 @@ def _main():
 
     detectors_mask, matching_true_boxes = get_detector_mask(boxes, anchors)
 
-    model = create_model(anchors, class_names)
+    model_body, model = create_model(anchors, class_names)
 
     model.compile(
         optimizer='adam', loss={
@@ -148,7 +148,7 @@ def _main():
     detectors_mask = np.asarray(detectors_mask)
     matching_true_boxes = np.array(matching_true_boxes)
 
-    num_steps = 100
+    num_steps = 1
     # TODO: For full training, put preprocessing inside training loop.
     # for i in range(num_steps):
     #     loss = model.train_on_batch(
@@ -164,7 +164,7 @@ def _main():
               batch_size=8,
               epochs=num_steps,
               callbacks=[logging, checkpoint])
-    model.save_weights('overfit_weights.h5')
+    model.save_weights('trained_weights.h5')
     # model.load_weights('overfit_weights.h5')
 
     image_data = [np.expand_dims(image, axis=0) for image in image_data]
@@ -172,8 +172,7 @@ def _main():
     detectors_mask = [np.expand_dims(mask, axis=0) for mask in detectors_mask]
     matching_true_boxes = [np.expand_dims(box, axis=0) for box in matching_true_boxes]
 
-
-    image_data = np.array(image_data) 
+    image_data = np.array(image_data)
     boxes = np.array(boxes)
     detectors_mask = np.asarray(detectors_mask)
     matching_true_boxes = np.array(matching_true_boxes)
@@ -205,5 +204,5 @@ def _main():
 
 
 if __name__ == '__main__':
-    create_model(YOLO_ANCHORS, get_classes(os.path.expanduser(os.path.join('model_data','underwater_classes.txt'))))
-    # _main()
+    # create_model(YOLO_ANCHORS, get_classes(os.path.expanduser(os.path.join('model_data','underwater_classes.txt'))))
+    _main()
