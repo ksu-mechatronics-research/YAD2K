@@ -183,17 +183,7 @@ def _main():
             'yolo_loss': lambda y_true, y_pred: y_pred
         })  # This is a hack to use the custom loss function in the last layer.
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-    # model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
-    #           np.zeros(len(image_data)),
-    #           batch_size=8,
-    #           epochs=num_steps,
-    #           callbacks=[logging, checkpoint])
-    # model.save_weights('overfit_weights.h5')
-    model.load_weights('overfit_weights.h5')
 
-=======
     model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
               np.zeros(len(image_data)),
               batch_size=8,
@@ -203,7 +193,6 @@ def _main():
     model.save_weights('trained.h5')
 
     # model.load_weights('training_intermediate.h5')
->>>>>>> 33bc1a651a22b7d1f1924d1f7075d748a01a9281
 
     image_data = [np.expand_dims(image, axis=0) for image in image_data]
     boxes = [np.expand_dims(box, axis=0) for box in boxes]
