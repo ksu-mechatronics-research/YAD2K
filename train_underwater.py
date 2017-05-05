@@ -76,8 +76,9 @@ def get_detector_mask(boxes, anchors):
 
     return detectors_mask, matching_true_boxes
 
-def create_model(anchors, class_names):
+def create_model(anchors, class_names, load_pretrained=True, freeze_body=True, count=13):
     '''returns the model'''
+
     detectors_mask_shape = (13, 13, 5, 1)
     matching_boxes_shape = (13, 13, 5, 5)
 
@@ -88,16 +89,30 @@ def create_model(anchors, class_names):
     matching_boxes_input = Input(shape=matching_boxes_shape)
 
     # Create model body.
-
-    # Save topless yolo:
-    # model_body = load_model(os.path.join('model_data', 'yolo.h5'))
-    # model_body = Model(model_body.inputs, model_body.layers[-2].output)
-    # model_body.save_weights(os.path.join('model_data', 'yolo_topless.h5'))
-
-    yolo_model = yolo_body(image_input, len(anchors), len(class_names))
+    yolo_model = yolo_body(image_input, len(anchors), len(class_names), count)
+    # TODO: Fix this bug
+    # calling yolo_body twice in one session causes error:
+    # File "/home/sexy/YAD2K/yad2k/models/keras_yolo.py", line 52, in yolo_body
+    #   conv13 = darknet.get_layer('leaky_re_lu_13').output
+    # yolo_model = yolo_body(image_input, len(anchors), len(class_names))
     topless_yolo = Model(yolo_model.input, yolo_model.layers[-2].output)
-    topless_yolo.load_weights(os.path.join('model_data', 'yolo_topless.h5'))
+
+    if load_pretrained:
+        # Save topless yolo:
+        topless_yolo_path = os.path.join('model_data', 'yolo_topless.h5')
+        if not os.path.exists(topless_yolo_path):
+            print("CREATING TOPLESS WEIGHTS FILE")
+            yolo_path = os.path.join('model_data', 'yolo.h5')
+            model_body = load_model(yolo_path)
+            model_body = Model(model_body.inputs, model_body.layers[-2].output)
+            model_body.save_weights(topless_yolo_path)
+        topless_yolo.load_weights(topless_yolo_path)
+
+    if freeze_body:
+        for layer in topless_yolo.layers:
+            layer.trainable = False
     final_layer = Conv2D(len(anchors)*(5+len(class_names)), (1, 1), activation='linear')(topless_yolo.output)
+
     model_body = Model(image_input, final_layer)
 
     # Place model loss on CPU to reduce GPU memory usage.
@@ -119,6 +134,8 @@ def create_model(anchors, class_names):
 
     return model_body, model
 
+
+
 def _main():
     DATA_PATH = os.path.expanduser(os.path.join('..', 'DATA', 'underwater.hdf5'))
     classes_path = os.path.expanduser(os.path.join('model_data','underwater_classes.txt'))
@@ -132,33 +149,41 @@ def _main():
 
     model_body, model = create_model(anchors, class_names)
 
-    model.compile(
-        optimizer='adam', loss={
-            'yolo_loss': lambda y_true, y_pred: y_pred
-        })  # This is a hack to use the custom loss function in the last layer.
-
-    # Add batch dimension for training.
-    # image_data = [np.expand_dims(image, axis=0) for image in image_data]
-    # boxes = [np.expand_dims(box, axis=0) for box in boxes]
-    # detectors_mask = [np.expand_dims(mask, axis=0) for mask in detectors_mask]
-    # matching_true_boxes = [np.expand_dims(box, axis=0) for box in matching_true_boxes]
-
+    # #################################################
+    # Train the model
+    # #################################################
     image_data = np.array(image_data)
     boxes = np.array(boxes)
     detectors_mask = np.asarray(detectors_mask)
     matching_true_boxes = np.array(matching_true_boxes)
 
-    num_steps = 1
-    # TODO: For full training, put preprocessing inside training loop.
-    # for i in range(num_steps):
-    #     loss = model.train_on_batch(
-    #         [image_data, boxes, detectors_mask, matching_true_boxes],
-    #         np.zeros(len(image_data)))
+    model.compile(
+        optimizer='adam', loss={
+            'yolo_loss': lambda y_true, y_pred: y_pred
+        })  # This is a hack to use the custom loss function in the last layer.
+
 
     logging = TensorBoard()
-    checkpoint = ModelCheckpoint("training.h5", monitor='val_loss',
-                            save_weights_only=True, save_best_only=False)
+    checkpoint = ModelCheckpoint("training_intermediate.h5", monitor='loss',
+                                 save_weights_only=True, save_best_only=True)
 
+    model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
+              np.zeros(len(image_data)),
+              batch_size=32,
+              epochs=5,
+              callbacks=[logging, checkpoint])
+    model.save_weights('trained_stage_1.h5')
+
+    model_body, model = create_model(anchors, class_names, load_pretrained=False, freeze_body=False, count=35)
+
+    model.load_weights('trained_stage_1.h5')
+
+    model.compile(
+        optimizer='adam', loss={
+            'yolo_loss': lambda y_true, y_pred: y_pred
+        })  # This is a hack to use the custom loss function in the last layer.
+
+<<<<<<< HEAD
 <<<<<<< HEAD
     # model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
     #           np.zeros(len(image_data)),
@@ -168,6 +193,17 @@ def _main():
     # model.save_weights('overfit_weights.h5')
     model.load_weights('overfit_weights.h5')
 
+=======
+    model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
+              np.zeros(len(image_data)),
+              batch_size=8,
+              epochs=1000,
+              callbacks=[logging, checkpoint])
+
+    model.save_weights('trained.h5')
+
+    # model.load_weights('training_intermediate.h5')
+>>>>>>> 33bc1a651a22b7d1f1924d1f7075d748a01a9281
 
     image_data = [np.expand_dims(image, axis=0) for image in image_data]
     boxes = [np.expand_dims(box, axis=0) for box in boxes]

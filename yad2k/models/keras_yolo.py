@@ -41,15 +41,18 @@ def space_to_depth_x2_output_shape(input_shape):
             input_shape[3]) if input_shape[1] else (input_shape[0], None, None,
                                                     4 * input_shape[3])
 
-
-def yolo_body(inputs, num_anchors, num_classes):
+def yolo_body(inputs, num_anchors, num_classes, count=13):
     """Create YOLO_V2 model CNN body in Keras."""
     darknet = Model(inputs, darknet_body()(inputs))
     conv20 = compose(
         DarknetConv2D_BN_Leaky(1024, (3, 3)),
         DarknetConv2D_BN_Leaky(1024, (3, 3)))(darknet.output)
 
-    conv13 = darknet.get_layer('leaky_re_lu_13').output
+    
+
+    conv13 = darknet.get_layer('leaky_re_lu_'+str(count)).output
+
+    count += 22
     conv21 = DarknetConv2D_BN_Leaky(64, (1, 1))(conv13)
     # TODO: Allow Keras Lambda to use func arguments for output_shape?
     conv21_reshaped = Lambda(
