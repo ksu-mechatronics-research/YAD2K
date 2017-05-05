@@ -8,6 +8,9 @@ images/*
 images/out/*
 model_data/*_anchors.txt
 
+# Ignore training logs
+events.out.*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

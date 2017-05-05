@@ -132,13 +132,13 @@ def _main():
     logging = TensorBoard()
     checkpoint = ModelCheckpoint("training.h5", monitor='loss', save_weights_only=True, save_best_only=False)
 
-    model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
-              np.zeros(len(image_data)),
-              batch_size=8,
-              epochs=num_steps,
-              callbacks=[logging, checkpoint])
-    model.save_weights('overfit_weights.h5')
-    # model.load_weights('overfit_weights.h5')
+    # model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
+    #           np.zeros(len(image_data)),
+    #           batch_size=8,
+    #           epochs=num_steps,
+    #           callbacks=[logging, checkpoint])
+    # model.save_weights('overfit_weights.h5')
+    model.load_weights('overfit_weights.h5')
 
     image_data = [np.expand_dims(image, axis=0) for image in image_data]
     boxes = [np.expand_dims(box, axis=0) for box in boxes]
@@ -155,10 +155,15 @@ def _main():
     yolo_outputs = yolo_head(model_body.output, anchors, len(class_names))
     input_image_shape = K.placeholder(shape=(2, ))
     boxes, scores, classes = yolo_eval(
-        yolo_outputs, input_image_shape, score_threshold=0.1, iou_threshold=0)
+        yolo_outputs, input_image_shape, score_threshold=0.05, iou_threshold=0)
 
     # Run prediction on overfit image.
     sess = K.get_session()  # TODO: Remove dependence on Tensorflow session.
+
+    out_path = "underwater_images"
+
+    if  not os.path.exists(out_path):
+        os.makedirs(out_path)
     for i in range(len(images)):
         out_boxes, out_scores, out_classes = sess.run(
             [boxes, scores, classes],
@@ -173,8 +178,11 @@ def _main():
         # Plot image with predicted boxes.
         image_with_boxes = draw_boxes(image_data[i][0], out_boxes, out_classes,
                                     class_names, out_scores)
-        plt.imshow(image_with_boxes, interpolation='nearest')
-        plt.show()
+        if len(out_boxes) > 0:
+            image = PIL.Image.fromarray(image_with_boxes)
+            image.save(os.path.join(out_path,str(i)+'.png'))
+        # plt.imshow(image_with_boxes, interpolation='nearest')
+        # plt.show()
 
 
 if __name__ == '__main__':
