@@ -14,15 +14,15 @@ from keras import backend as K
 from keras.layers import Input, Lambda, Conv2D
 from keras.models import load_model, Model
 
-from keras.callbacks import TensorBoard, ModelCheckpoint
+from keras.callbacks import TensorBoard, ModelCheckpoint, EarlyStopping
 
 from yad2k.models.keras_yolo import (preprocess_true_boxes, yolo_body,
                                      yolo_eval, yolo_head, yolo_loss)
 from yad2k.utils.draw_boxes import draw_boxes
 
-YOLO_ANCHORS = np.array(
-    ((0.57273, 0.677385), (1.87446, 2.06253), (3.33843, 5.47434),
-     (7.88282, 3.52778), (9.77052, 9.16828)))
+UNDERWATER_ANCHORS = np.array(
+    ((0.57273, 0.677385), (0.57273, 0.677385), (0.57273, 0.677385),
+     (3.33843, 5.47434), (9.77052, 9.16828)))
 
 def get_classes(classes_path):
     '''loads the classes'''
@@ -31,11 +31,8 @@ def get_classes(classes_path):
     class_names = [c.strip() for c in class_names]
     return class_names
 
-def get_data(DATA_PATH):
+def process_data(images, boxes):
     '''loads the data'''
-    data = h5py.File(DATA_PATH, 'r')
-
-    images = data['train/images']
     images = [PIL.Image.fromarray(i) for i in images]
     orig_size = np.array([images[0].width, images[0].height])
     orig_size = np.expand_dims(orig_size, axis=0)
@@ -48,7 +45,6 @@ def get_data(DATA_PATH):
 
     # Box preprocessing.
     # Original boxes stored as 1D list of class, x_min, y_min, x_max, y_max.
-    boxes = np.array(data['train/boxes'])
     boxes = [box.reshape((-1, 5)) for box in boxes]
     # Get extents as y_min, x_min, y_max, x_max, class for comparision with
     # model output.
@@ -61,7 +57,7 @@ def get_data(DATA_PATH):
     boxes_wh = boxes_wh / orig_size
     boxes = [np.concatenate((boxes_xy[i], boxes_wh[i], box[:, 0:1]), axis=1) for i, box in enumerate(boxes)]
 
-    return images, processed_images, boxes
+    return images, np.array(processed_images), np.array(boxes)
 
 def get_detector_mask(boxes, anchors):
     # Precompute detectors_mask and matching_true_boxes for training.
@@ -74,7 +70,7 @@ def get_detector_mask(boxes, anchors):
     for i, box in enumerate(boxes):
         detectors_mask[i], matching_true_boxes[i] = preprocess_true_boxes(box, anchors, [416, 416])
 
-    return detectors_mask, matching_true_boxes
+    return np.array(detectors_mask), np.array(matching_true_boxes)
 
 def create_model(anchors, class_names, load_pretrained=True, freeze_body=True, count=13):
     '''returns the model'''
@@ -141,21 +137,24 @@ def _main():
     classes_path = os.path.expanduser(os.path.join('model_data','underwater_classes.txt'))
 
     class_names = get_classes(classes_path)
-    images, image_data, boxes = get_data(DATA_PATH)
+    data = h5py.File(DATA_PATH, 'r')
 
-    anchors = YOLO_ANCHORS
+    images, image_data, boxes = process_data(data['train/images'], data['train/boxes'])
+
+    val_images, val_image_data, val_boxes = process_data(data['test/images'], data['test/boxes'])
+
+    anchors = UNDERWATER_ANCHORS
 
     detectors_mask, matching_true_boxes = get_detector_mask(boxes, anchors)
+
+    val_detectors_mask, val_matching_true_boxes = get_detector_mask(val_boxes, anchors)
 
     model_body, model = create_model(anchors, class_names)
 
     # #################################################
-    # Train the model
+    # Train the model:
     # #################################################
-    image_data = np.array(image_data)
-    boxes = np.array(boxes)
-    detectors_mask = np.asarray(detectors_mask)
-    matching_true_boxes = np.array(matching_true_boxes)
+    validation = [val_image_data, val_boxes, val_detectors_mask, val_matching_true_boxes]
 
     model.compile(
         optimizer='adam', loss={
@@ -164,14 +163,17 @@ def _main():
 
 
     logging = TensorBoard()
-    checkpoint = ModelCheckpoint("training_intermediate.h5", monitor='loss',
+    checkpoint = ModelCheckpoint("trained_stage_3_best.h5", monitor='val_loss',
                                  save_weights_only=True, save_best_only=True)
+    early_stopping = EarlyStopping(monitor='val_loss', min_delta=0, patience=15, verbose=1, mode='auto')
 
     model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
               np.zeros(len(image_data)),
+              validation_data=(validation,
+                            [np.zeros(len(val_image_data))]),
               batch_size=32,
               epochs=5,
-              callbacks=[logging, checkpoint])
+              callbacks=[logging])
     model.save_weights('trained_stage_1.h5')
 
     model_body, model = create_model(anchors, class_names, load_pretrained=False, freeze_body=False, count=35)
@@ -186,23 +188,33 @@ def _main():
 
     model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
               np.zeros(len(image_data)),
+              validation_data=(validation,
+                            [np.zeros(len(val_image_data))]),
+              batch_size=8,
+              epochs=30,
+              callbacks=[logging])
+
+    model.save_weights('trained_stage_2.h5')
+
+    model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
+              np.zeros(len(image_data)),
+              validation_data=(validation,
+                            [np.zeros(len(val_image_data))]),
               batch_size=8,
               epochs=1000,
               callbacks=[logging, checkpoint])
 
-    model.save_weights('trained.h5')
+    model.save_weights('trained_stage_3.h5')
 
-    # model.load_weights('training_intermediate.h5')
+    model.load_weights('trained_stage_3_best.h5')
 
-    image_data = [np.expand_dims(image, axis=0) for image in image_data]
-    boxes = [np.expand_dims(box, axis=0) for box in boxes]
-    detectors_mask = [np.expand_dims(mask, axis=0) for mask in detectors_mask]
-    matching_true_boxes = [np.expand_dims(box, axis=0) for box in matching_true_boxes]
-
-    image_data = np.array(image_data)
-    boxes = np.array(boxes)
-    detectors_mask = np.asarray(detectors_mask)
-    matching_true_boxes = np.array(matching_true_boxes)
+    ##################################
+    # Save Images:
+    ##################################
+    image_data = np.array([np.expand_dims(image, axis=0) for image in image_data])
+    boxes = np.array([np.expand_dims(box, axis=0) for box in boxes])
+    detectors_mask = np.array([np.expand_dims(mask, axis=0) for mask in detectors_mask])
+    matching_true_boxes = np.array([np.expand_dims(box, axis=0) for box in matching_true_boxes])
 
     # Create output variables for prediction.
     yolo_outputs = yolo_head(model_body.output, anchors, len(class_names))
