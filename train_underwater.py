@@ -44,6 +44,8 @@ def process_data(images, boxes):
 
 
     # Box preprocessing.
+    boxes = np.array([np.array(boxes) for boxes in boxes])
+    print(boxes[0])
     # Original boxes stored as 1D list of class, x_min, y_min, x_max, y_max.
     boxes = [box.reshape((-1, 5)) for box in boxes]
     # Get extents as y_min, x_min, y_max, x_max, class for comparision with
@@ -125,7 +127,7 @@ def create_model(anchors, class_names, load_pretrained=True, freeze_body=True, c
                        ])
 
     model = Model(
-        [image_input, boxes_input, detectors_mask_input,
+        [model_body.input, boxes_input, detectors_mask_input,
          matching_boxes_input], model_loss)
 
     return model_body, model
@@ -141,21 +143,15 @@ def _main():
 
     images, image_data, boxes = process_data(data['train/images'], data['train/boxes'])
 
-    val_images, val_image_data, val_boxes = process_data(data['test/images'], data['test/boxes'])
-
     anchors = UNDERWATER_ANCHORS
 
     detectors_mask, matching_true_boxes = get_detector_mask(boxes, anchors)
-
-    val_detectors_mask, val_matching_true_boxes = get_detector_mask(val_boxes, anchors)
 
     model_body, model = create_model(anchors, class_names)
 
     # #################################################
     # Train the model:
     # #################################################
-    validation = [val_image_data, val_boxes, val_detectors_mask, val_matching_true_boxes]
-
     model.compile(
         optimizer='adam', loss={
             'yolo_loss': lambda y_true, y_pred: y_pred
@@ -169,8 +165,7 @@ def _main():
 
     model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
               np.zeros(len(image_data)),
-              validation_data=(validation,
-                            [np.zeros(len(val_image_data))]),
+              validation_split=0.9,
               batch_size=32,
               epochs=5,
               callbacks=[logging])
@@ -188,8 +183,7 @@ def _main():
 
     model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
               np.zeros(len(image_data)),
-              validation_data=(validation,
-                            [np.zeros(len(val_image_data))]),
+              validation_split=0.9,
               batch_size=8,
               epochs=30,
               callbacks=[logging])
@@ -198,11 +192,10 @@ def _main():
 
     model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
               np.zeros(len(image_data)),
-              validation_data=(validation,
-                            [np.zeros(len(val_image_data))]),
+              validation_split=0.9,
               batch_size=8,
-              epochs=1000,
-              callbacks=[logging, checkpoint])
+              epochs=30,
+              callbacks=[logging, checkpoint, early_stopping])
 
     model.save_weights('trained_stage_3.h5')
 
@@ -211,16 +204,13 @@ def _main():
     ##################################
     # Save Images:
     ##################################
-    image_data = np.array([np.expand_dims(image, axis=0) for image in image_data])
-    boxes = np.array([np.expand_dims(box, axis=0) for box in boxes])
-    detectors_mask = np.array([np.expand_dims(mask, axis=0) for mask in detectors_mask])
-    matching_true_boxes = np.array([np.expand_dims(box, axis=0) for box in matching_true_boxes])
+    image_data = np.array([np.expand_dims(image, axis=0) for image in image_data[int(len(image_data)*.9):]])
 
     # Create output variables for prediction.
     yolo_outputs = yolo_head(model_body.output, anchors, len(class_names))
     input_image_shape = K.placeholder(shape=(2, ))
     boxes, scores, classes = yolo_eval(
-        yolo_outputs, input_image_shape, score_threshold=0.05, iou_threshold=0)
+        yolo_outputs, input_image_shape, score_threshold=0.07, iou_threshold=0)
 
     # Run prediction on overfit image.
     sess = K.get_session()  # TODO: Remove dependence on Tensorflow session.
@@ -229,12 +219,12 @@ def _main():
 
     if  not os.path.exists(out_path):
         os.makedirs(out_path)
-    for i in range(len(images)):
+    for i in range(len(image_data)):
         out_boxes, out_scores, out_classes = sess.run(
             [boxes, scores, classes],
             feed_dict={
                 model_body.input: image_data[i],
-                input_image_shape: [images[i].size[1], images[i].size[0]],
+                input_image_shape: [416, 416],
                 K.learning_phase(): 0
             })
         print('Found {} boxes for image.'.format(len(out_boxes)))
@@ -243,9 +233,9 @@ def _main():
         # Plot image with predicted boxes.
         image_with_boxes = draw_boxes(image_data[i][0], out_boxes, out_classes,
                                     class_names, out_scores)
-        if len(out_boxes) > 0:
-            image = PIL.Image.fromarray(image_with_boxes)
-            image.save(os.path.join(out_path,str(i)+'.png'))
+        # if len(out_boxes) > 0:
+        image = PIL.Image.fromarray(image_with_boxes)
+        image.save(os.path.join(out_path,str(i)+'.png'))
         # plt.imshow(image_with_boxes, interpolation='nearest')
         # plt.show()
 
