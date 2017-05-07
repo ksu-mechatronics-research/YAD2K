@@ -165,7 +165,7 @@ def _main():
 
     model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
               np.zeros(len(image_data)),
-              validation_split=0.9,
+              validation_split=0.1,
               batch_size=32,
               epochs=5,
               callbacks=[logging])
@@ -183,7 +183,7 @@ def _main():
 
     model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
               np.zeros(len(image_data)),
-              validation_split=0.9,
+              validation_split=0.1,
               batch_size=8,
               epochs=30,
               callbacks=[logging])
@@ -192,7 +192,7 @@ def _main():
 
     model.fit([image_data, boxes, detectors_mask, matching_true_boxes],
               np.zeros(len(image_data)),
-              validation_split=0.9,
+              validation_split=0.1,
               batch_size=8,
               epochs=30,
               callbacks=[logging, checkpoint, early_stopping])
