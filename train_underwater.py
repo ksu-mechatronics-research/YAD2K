@@ -32,7 +32,7 @@ def get_classes(classes_path):
     return class_names
 
 def process_data(images, boxes):
-    '''loads the data'''
+    '''processes the data'''
     images = [PIL.Image.fromarray(i) for i in images]
     orig_size = np.array([images[0].width, images[0].height])
     orig_size = np.expand_dims(orig_size, axis=0)
@@ -65,11 +65,13 @@ def process_data(images, boxes):
     return images, np.array(processed_images), np.array(boxes)
 
 def get_detector_mask(boxes, anchors):
-    # Precompute detectors_mask and matching_true_boxes for training.
-    # Detectors mask is 1 for each spatial position in the final conv layer and
-    # anchor that should be active for the given boxes and 0 otherwise.
-    # Matching true boxes gives the regression targets for the ground truth box
-    # that caused a detector to be active or 0 otherwise.
+    '''
+    Precompute detectors_mask and matching_true_boxes for training.
+    Detectors mask is 1 for each spatial position in the final conv layer and
+    anchor that should be active for the given boxes and 0 otherwise.
+    Matching true boxes gives the regression targets for the ground truth box
+    that caused a detector to be active or 0 otherwise.
+    '''
     detectors_mask = [0 for i in range(len(boxes))]
     matching_true_boxes = [0 for i in range(len(boxes))]
     for i, box in enumerate(boxes):
@@ -78,7 +80,7 @@ def get_detector_mask(boxes, anchors):
     return np.array(detectors_mask), np.array(matching_true_boxes)
 
 def create_model(anchors, class_names, load_pretrained=True, freeze_body=True, count=13):
-    '''returns the model'''
+    '''returns the body of the model and the model'''
 
     detectors_mask_shape = (13, 13, 5, 1)
     matching_boxes_shape = (13, 13, 5, 5)
@@ -130,26 +132,10 @@ def create_model(anchors, class_names, load_pretrained=True, freeze_body=True, c
 
     return model_body, model
 
-
-
-def _main():
-    DATA_PATH = os.path.expanduser(os.path.join('..', 'DATA', 'underwater_data.npz'))
-    classes_path = os.path.expanduser(os.path.join('model_data','underwater_classes.txt'))
-
-    class_names = get_classes(classes_path)
-    data = np.load(DATA_PATH)
-
-    images, image_data, boxes = process_data(data['images'], data['boxes'])
-
-    anchors = UNDERWATER_ANCHORS
-
-    detectors_mask, matching_true_boxes = get_detector_mask(boxes, anchors)
-
-    model_body, model = create_model(anchors, class_names)
-
-    # #################################################
-    # Train the model:
-    # #################################################
+def train(model, class_names, anchors, image_data, boxes, detectors_mask, matching_true_boxes):
+    '''
+    train the model
+    '''
     model.compile(
         optimizer='adam', loss={
             'yolo_loss': lambda y_true, y_pred: y_pred
@@ -197,12 +183,25 @@ def _main():
 
     model.save_weights('trained_stage_3.h5')
 
-    model.load_weights('trained_stage_3_best.h5')
-
-    ##################################
-    # Save Images:
-    ##################################
-    image_data = np.array([np.expand_dims(image, axis=0) for image in image_data[int(len(image_data)*.9):]])
+def draw(model_body, class_names, anchors, image_data, image_set='val', weights_name='trained_stage_3_best.h5'):
+    '''
+    Draw bounding boxes on image data
+    
+    '''
+    if image_set == 'train':
+        image_data = np.array([np.expand_dims(image, axis=0) 
+            for image in image_data[:int(len(image_data)*.9)]])
+    elif image_set == 'val':
+        image_data = np.array([np.expand_dims(image, axis=0) 
+            for image in image_data[int(len(image_data)*.9):]])
+    elif image_set == 'all':
+        image_data = np.array([np.expand_dims(image, axis=0) 
+            for image in image_data])
+    else:
+        ValueError("argument image_set must be 'train', 'val', or 'all'")
+    # model.load_weights(weights_name)
+    print(image_data.shape)
+    model_body.load_weights(weights_name)
 
     # Create output variables for prediction.
     yolo_outputs = yolo_head(model_body.output, anchors, len(class_names))
@@ -213,7 +212,7 @@ def _main():
     # Run prediction on overfit image.
     sess = K.get_session()  # TODO: Remove dependence on Tensorflow session.
 
-    out_path = "underwater_images"
+    out_path = "output_images"
 
     if  not os.path.exists(out_path):
         os.makedirs(out_path)
@@ -222,7 +221,7 @@ def _main():
             [boxes, scores, classes],
             feed_dict={
                 model_body.input: image_data[i],
-                input_image_shape: [416, 416],
+                input_image_shape: [image_data.shape[2], image_data.shape[3]],
                 K.learning_phase(): 0
             })
         print('Found {} boxes for image.'.format(len(out_boxes)))
@@ -231,11 +230,44 @@ def _main():
         # Plot image with predicted boxes.
         image_with_boxes = draw_boxes(image_data[i][0], out_boxes, out_classes,
                                     class_names, out_scores)
-        # if len(out_boxes) > 0:
-        image = PIL.Image.fromarray(image_with_boxes)
-        image.save(os.path.join(out_path,str(i)+'.png'))
-        # plt.imshow(image_with_boxes, interpolation='nearest')
-        # plt.show()
+        # Save the image:
+        # image = PIL.Image.fromarray(image_with_boxes)
+        # image.save(os.path.join(out_path,str(i)+'.png'))
+
+        # To display:
+        plt.imshow(image_with_boxes, interpolation='nearest')
+        plt.show()
+
+def _main():
+    DATA_PATH = os.path.expanduser(
+        os.path.join('..', 'DATA', 'underwater_data.npz'))
+
+    classes_path = os.path.expanduser(
+        os.path.join('model_data','underwater_classes.txt'))
+
+    class_names = get_classes(classes_path)
+    data = np.load(DATA_PATH)
+
+    images, image_data, boxes = process_data(data['images'], data['boxes'])
+
+    anchors = UNDERWATER_ANCHORS
+
+    detectors_mask, matching_true_boxes = get_detector_mask(boxes, anchors)
+
+    model_body, model = create_model(anchors, class_names)
+
+    # train(
+    #     model,
+    #     class_names,
+    #     anchors,
+    #     image_data,
+    #     boxes,
+    #     detectors_mask,
+    #     matching_true_boxes
+    # )
+
+    draw(model_body, class_names, anchors, image_data, image_set='all')
+
 
 
 if __name__ == '__main__':
