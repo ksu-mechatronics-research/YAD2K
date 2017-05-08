@@ -183,7 +183,7 @@ def train(model, class_names, anchors, image_data, boxes, detectors_mask, matchi
 
     model.save_weights('trained_stage_3.h5')
 
-def draw(model_body, class_names, anchors, image_data, image_set='val', weights_name='trained_stage_3_best.h5'):
+def draw(model_body, class_names, anchors, image_data, image_set='val', weights_name='trained_stage_3_best.h5', save_all=True):
     '''
     Draw bounding boxes on image data
     
@@ -231,8 +231,9 @@ def draw(model_body, class_names, anchors, image_data, image_set='val', weights_
         image_with_boxes = draw_boxes(image_data[i][0], out_boxes, out_classes,
                                     class_names, out_scores)
         # Save the image:
-        # image = PIL.Image.fromarray(image_with_boxes)
-        # image.save(os.path.join(out_path,str(i)+'.png'))
+        if save_all or (len(out_boxes) > 0):
+            image = PIL.Image.fromarray(image_with_boxes)
+            image.save(os.path.join(out_path,str(i)+'.png'))
 
         # To display:
         plt.imshow(image_with_boxes, interpolation='nearest')
@@ -266,7 +267,7 @@ def _main():
     #     matching_true_boxes
     # )
 
-    draw(model_body, class_names, anchors, image_data, image_set='all')
+    draw(model_body, class_names, anchors, image_data, image_set='val', weights_name='trained_stage_3.h5')
 
 
 
