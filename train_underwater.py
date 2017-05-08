@@ -42,27 +42,29 @@ def process_data(images, boxes):
     processed_images = [np.array(image, dtype=np.float) for image in processed_images]
     processed_images = [image/255. for image in processed_images]
 
+    if boxes is not None:
+        # Box preprocessing.
+        # Original boxes stored as 1D list of class, x_min, y_min, x_max, y_max.
+        boxes = [box.reshape((-1, 5)) for box in boxes]
+        # Get extents as y_min, x_min, y_max, x_max, class for comparision with
+        # model output.
+        boxes_extents = [box[:, [2, 1, 4, 3, 0]] for box in boxes]
 
-    # Box preprocessing.
-    # Original boxes stored as 1D list of class, x_min, y_min, x_max, y_max.
-    boxes = [box.reshape((-1, 5)) for box in boxes]
-    # Get extents as y_min, x_min, y_max, x_max, class for comparision with
-    # model output.
-    boxes_extents = [box[:, [2, 1, 4, 3, 0]] for box in boxes]
+        # Get box parameters as x_center, y_center, box_width, box_height, class.
+        boxes_xy = [0.5 * (box[:, 3:5] + box[:, 1:3]) for box in boxes]
+        boxes_wh = [box[:, 3:5] - box[:, 1:3] for box in boxes]
+        boxes_xy = [boxxy / orig_size for boxxy in boxes_xy]
+        boxes_wh = [boxwh / orig_size for boxwh in boxes_wh]
+        boxes = [np.concatenate((boxes_xy[i], boxes_wh[i], box[:, 0:1]), axis=1) for i, box in enumerate(boxes)]
 
-    # Get box parameters as x_center, y_center, box_width, box_height, class.
-    boxes_xy = [0.5 * (box[:, 3:5] + box[:, 1:3]) for box in boxes]
-    boxes_wh = [box[:, 3:5] - box[:, 1:3] for box in boxes]
-    boxes_xy = [boxxy / orig_size for boxxy in boxes_xy]
-    boxes_wh = [boxwh / orig_size for boxwh in boxes_wh]
-    boxes = [np.concatenate((boxes_xy[i], boxes_wh[i], box[:, 0:1]), axis=1) for i, box in enumerate(boxes)]
+        for i, boxz in enumerate(boxes): # zero pad for training
+            if boxz.shape[0]  < 6:
+                zero_padding = np.zeros( (6-boxz.shape[0], 5), dtype=np.float32)
+                boxes[i] = np.vstack((boxz, zero_padding))
 
-    for i, boxz in enumerate(boxes): # zero pad for training
-        if boxz.shape[0]  < 6:
-            zero_padding = np.zeros( (6-boxz.shape[0], 5), dtype=np.float32)
-            boxes[i] = np.vstack((boxz, zero_padding))
-
-    return images, np.array(processed_images), np.array(boxes)
+        return images, np.array(processed_images), np.array(boxes)
+    else:
+        return images, np.array(processed_images)
 
 def get_detector_mask(boxes, anchors):
     '''
