@@ -44,8 +44,6 @@ def process_data(images, boxes):
 
 
     # Box preprocessing.
-    boxes = np.array([np.array(boxes) for boxes in boxes])
-    print(boxes[0])
     # Original boxes stored as 1D list of class, x_min, y_min, x_max, y_max.
     boxes = [box.reshape((-1, 5)) for box in boxes]
     # Get extents as y_min, x_min, y_max, x_max, class for comparision with
@@ -55,9 +53,14 @@ def process_data(images, boxes):
     # Get box parameters as x_center, y_center, box_width, box_height, class.
     boxes_xy = [0.5 * (box[:, 3:5] + box[:, 1:3]) for box in boxes]
     boxes_wh = [box[:, 3:5] - box[:, 1:3] for box in boxes]
-    boxes_xy = boxes_xy / orig_size
-    boxes_wh = boxes_wh / orig_size
+    boxes_xy = [boxxy / orig_size for boxxy in boxes_xy]
+    boxes_wh = [boxwh / orig_size for boxwh in boxes_wh]
     boxes = [np.concatenate((boxes_xy[i], boxes_wh[i], box[:, 0:1]), axis=1) for i, box in enumerate(boxes)]
+
+    for i, boxz in enumerate(boxes): # zero pad for training
+        if boxz.shape[0]  < 6:
+            zero_padding = np.zeros( (6-boxz.shape[0], 5), dtype=np.float32)
+            boxes[i] = np.vstack((boxz, zero_padding))
 
     return images, np.array(processed_images), np.array(boxes)
 
@@ -88,11 +91,6 @@ def create_model(anchors, class_names, load_pretrained=True, freeze_body=True, c
 
     # Create model body.
     yolo_model = yolo_body(image_input, len(anchors), len(class_names), count)
-    # TODO: Fix this bug
-    # calling yolo_body twice in one session causes error:
-    # File "/home/sexy/YAD2K/yad2k/models/keras_yolo.py", line 52, in yolo_body
-    #   conv13 = darknet.get_layer('leaky_re_lu_13').output
-    # yolo_model = yolo_body(image_input, len(anchors), len(class_names))
     topless_yolo = Model(yolo_model.input, yolo_model.layers[-2].output)
 
     if load_pretrained:
@@ -135,13 +133,13 @@ def create_model(anchors, class_names, load_pretrained=True, freeze_body=True, c
 
 
 def _main():
-    DATA_PATH = os.path.expanduser(os.path.join('..', 'DATA', 'underwater.hdf5'))
+    DATA_PATH = os.path.expanduser(os.path.join('..', 'DATA', 'underwater_data.npz'))
     classes_path = os.path.expanduser(os.path.join('model_data','underwater_classes.txt'))
 
     class_names = get_classes(classes_path)
-    data = h5py.File(DATA_PATH, 'r')
+    data = np.load(DATA_PATH)
 
-    images, image_data, boxes = process_data(data['train/images'], data['train/boxes'])
+    images, image_data, boxes = process_data(data['images'], data['boxes'])
 
     anchors = UNDERWATER_ANCHORS
 
