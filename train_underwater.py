@@ -62,9 +62,9 @@ def process_data(images, boxes):
                 zero_padding = np.zeros( (6-boxz.shape[0], 5), dtype=np.float32)
                 boxes[i] = np.vstack((boxz, zero_padding))
 
-        return images, np.array(processed_images), np.array(boxes)
+        return np.array(processed_images), np.array(boxes)
     else:
-        return images, np.array(processed_images)
+        return np.array(processed_images)
 
 def get_detector_mask(boxes, anchors):
     '''
@@ -246,12 +246,12 @@ def _main():
         os.path.join('..', 'DATA', 'underwater_data.npz'))
 
     classes_path = os.path.expanduser(
-        os.path.join('model_data','underwater_classes.txt'))
+        os.path.join('..','underwater_classes.txt'))
 
     class_names = get_classes(classes_path)
     data = np.load(DATA_PATH)
 
-    images, image_data, boxes = process_data(data['images'], data['boxes'])
+    image_data, boxes = process_data(data['images'], data['boxes'])
 
     anchors = UNDERWATER_ANCHORS
 
@@ -269,7 +269,13 @@ def _main():
     #     matching_true_boxes
     # )
 
-    draw(model_body, class_names, anchors, image_data, image_set='val', weights_name='trained_stage_3.h5')
+    draw(model_body,
+        class_names,
+        anchors,
+        image_data,
+        image_set='val',
+        weights_name='trained_stage_3.h5',
+        save_all=False)
 
 
 
