@@ -185,19 +185,19 @@ def train(model, class_names, anchors, image_data, boxes, detectors_mask, matchi
 
     model.save_weights('trained_stage_3.h5')
 
-def draw(model_body, class_names, anchors, image_data, image_set='val', weights_name='trained_stage_3_best.h5', save_all=True):
+def draw(model_body, class_names, anchors, image_data, image_set='val',
+            weights_name='trained_stage_3_best.h5', out_path="output_images", save_all=True):
     '''
     Draw bounding boxes on image data
-    
     '''
     if image_set == 'train':
-        image_data = np.array([np.expand_dims(image, axis=0) 
+        image_data = np.array([np.expand_dims(image, axis=0)
             for image in image_data[:int(len(image_data)*.9)]])
     elif image_set == 'val':
-        image_data = np.array([np.expand_dims(image, axis=0) 
+        image_data = np.array([np.expand_dims(image, axis=0)
             for image in image_data[int(len(image_data)*.9):]])
     elif image_set == 'all':
-        image_data = np.array([np.expand_dims(image, axis=0) 
+        image_data = np.array([np.expand_dims(image, axis=0)
             for image in image_data])
     else:
         ValueError("argument image_set must be 'train', 'val', or 'all'")
@@ -213,8 +213,6 @@ def draw(model_body, class_names, anchors, image_data, image_set='val', weights_
 
     # Run prediction on overfit image.
     sess = K.get_session()  # TODO: Remove dependence on Tensorflow session.
-
-    out_path = "output_images"
 
     if  not os.path.exists(out_path):
         os.makedirs(out_path)
@@ -238,15 +236,15 @@ def draw(model_body, class_names, anchors, image_data, image_set='val', weights_
             image.save(os.path.join(out_path,str(i)+'.png'))
 
         # To display:
-        plt.imshow(image_with_boxes, interpolation='nearest')
-        plt.show()
+        # plt.imshow(image_with_boxes, interpolation='nearest')
+        # plt.show()
 
 def _main():
     DATA_PATH = os.path.expanduser(
         os.path.join('..', 'DATA', 'underwater_data.npz'))
 
     classes_path = os.path.expanduser(
-        os.path.join('..','underwater_classes.txt'))
+        os.path.join('model_data','underwater_classes.txt'))
 
     class_names = get_classes(classes_path)
     data = np.load(DATA_PATH)
@@ -274,7 +272,7 @@ def _main():
         anchors,
         image_data,
         image_set='val',
-        weights_name='trained_stage_3.h5',
+        weights_name='trained_stage_3_best.h5',
         save_all=False)
 
 
