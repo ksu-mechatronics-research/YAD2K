@@ -31,7 +31,7 @@ def get_classes(classes_path):
     class_names = [c.strip() for c in class_names]
     return class_names
 
-def process_data(images, boxes):
+def process_data(images, boxes=None):
     '''processes the data'''
     images = [PIL.Image.fromarray(i) for i in images]
     orig_size = np.array([images[0].width, images[0].height])
