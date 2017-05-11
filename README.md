@@ -2,9 +2,7 @@
 I have also made the keras weights file (.h5) I generated on 17 04 2017 
 (dd mm yyyy) available [here](https://drive.google.com/file/d/0B_fefIm3LDfjOE5ONmlsUE5TMTA/view?usp=sharing)
 
-It was able to label some images with test_yolo.py, so it should work.
-
-Note: To generate the .h5, I had to grab the new yolo .cfg from the darkent github.
+I was able to fine-tune the pretrained yolo model to do detection with my own [underwater dataset](https://github.com/shadySource/DATA). Results and the model are [here](https://drive.google.com/drive/folders/0B_fefIm3LDfjX3lwaTBWNVUyeEk?usp=sharing).
 
 ## YAD2K: Yet Another Darknet 2 Keras
 
